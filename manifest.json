@@ -1,0 +1,8 @@
+{
+  "domain": "remote_gpio_custom",
+  "name": "Remote GPIO extension",
+  "documentation": "",
+  "dependencies": [],
+  "requirements": ["pigpio"],
+  "codeowners": ["@r00tat"]
+}
