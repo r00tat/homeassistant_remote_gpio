@@ -71,7 +71,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 class RemoteRPiGPIOSwitch(SwitchEntity):
     """Representation of a Remote Raspberry Pi GPIO."""
 
-    def __init__(self, name, address, port, invert_logic):
+    def __init__(self, name, address, port, invert_logic=False):
         """Initialize the pin."""
         self._name = name or DEVICE_DEFAULT_NAME
         self._state = STATE_UNKNOWN
@@ -88,7 +88,7 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
                                      self._invert_logic)
             self._state = STATE_ON if self._switch.is_lit else STATE_OFF
         except Exception:
-            _LOGGER.exception("failed to connect switch")
+            _LOGGER.exception("failed to connect {}".format(str(self)))
             self._state = STATE_UNAVAILABLE
 
         return self._switch
@@ -151,4 +151,13 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
             self.setup_switch()
         if not self.is_connected:
             # still not connected
-            raise Exception("PIN {} {} not connected".format(self._name, self._port))
+            raise Exception("{} not connected".format(str(self)))
+
+    def __str__(self) -> str:
+        return "remote_gpio switch {} on {} pin {}".format(self._name, self._address,
+                                                           self._port)
+
+    def __repr__(self) -> str:
+        return "RemoteRPiGPIOSwitch(\"{}\",\"{}\",{},{})".format(
+            self._name, self._address, self._port,
+            "True" if self._invert_logic else "False")
