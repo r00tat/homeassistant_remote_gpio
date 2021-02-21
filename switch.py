@@ -1,12 +1,19 @@
 """Allows to configure a switch using RPi GPIO."""
 import logging
 
-from gpiozero import LED
+from gpiozero import LED, GPIOZeroError
 from gpiozero.pins.pigpio import PiGPIOFactory
 import voluptuous as vol
 
 from homeassistant.components.switch import PLATFORM_SCHEMA, SwitchEntity
-from homeassistant.const import CONF_HOST, DEVICE_DEFAULT_NAME
+from homeassistant.const import (
+    CONF_HOST,
+    DEVICE_DEFAULT_NAME,
+    STATE_UNKNOWN,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+)
 import homeassistant.helpers.config_validation as cv
 
 from . import CONF_INVERT_LOGIC, DEFAULT_INVERT_LOGIC
@@ -24,8 +31,8 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 })
 
 
-def setup_switch(address, port, name, invert_logic=False):
-    """Set up a switch."""
+def setup_led(address, port, name, invert_logic=False):
+    """set up a led"""
     _LOGGER.debug(
         "setting up output %s on %s port %s %s",
         name,
@@ -34,7 +41,12 @@ def setup_switch(address, port, name, invert_logic=False):
         "inverted" if invert_logic else "",
     )
     led = LED(port, active_high=not invert_logic, pin_factory=PiGPIOFactory(address))
-    new_switch = RemoteRPiGPIOSwitch(name, led)
+    return led
+
+
+def setup_switch(address, port, name, invert_logic=False):
+    """Set up a switch."""
+    new_switch = RemoteRPiGPIOSwitch(name, address, port, invert_logic)
     return new_switch
 
 
@@ -57,13 +69,29 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
 
 
 class RemoteRPiGPIOSwitch(SwitchEntity):
-    """Representation of a Remtoe Raspberry Pi GPIO."""
+    """Representation of a Remote Raspberry Pi GPIO."""
 
-    def __init__(self, name, led):
+    def __init__(self, name, address, port, invert_logic):
         """Initialize the pin."""
         self._name = name or DEVICE_DEFAULT_NAME
-        self._state = False
-        self._switch = led
+        self._state = STATE_UNKNOWN
+        self._address = address
+        self._port = port
+        self._invert_logic = invert_logic
+        self.setup_switch()
+
+    def setup_switch(self):
+        """create a switch"""
+        self._switch = None
+        try:
+            self._switch = setup_led(self._address, self._port, self._name,
+                                     self._invert_logic)
+            self._state = STATE_UNKNOWN
+        except Exception as err:
+            _LOGGER.exception("failed to connect switch", err)
+            self._state = STATE_UNAVAILABLE
+
+        return self._switch
 
     @property
     def name(self):
@@ -83,18 +111,41 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
     @property
     def is_on(self):
         """Return true if device is on."""
-        return self._state
+        return self._state == STATE_ON
 
     def turn_on(self, **kwargs):
         """Turn the device on."""
-        _LOGGER.debug("turn on switch %s %s", self._name, self._switch.pin)
-        self._state = True
-        self._switch.on()
-        self.schedule_update_ha_state()
+        self.change_state(True)
 
     def turn_off(self, **kwargs):
         """Turn the device off."""
-        _LOGGER.debug("turn off switch %s %s", self._name, self._switch.pin)
-        self._state = False
-        self._switch.off()
-        self.schedule_update_ha_state()
+        self.change_state(False)
+
+    def change_state(self, on=True):
+        """change the state"""
+        _LOGGER.debug("turn %s switch %s %s", "on" if on else "off", self._name,
+                      self._switch.pin)
+        try:
+            self.ensure_connected()
+            self._state = STATE_ON if on else STATE_OFF
+            if on:
+                self._switch.on()
+            else:
+                self._switch.off()
+            self.schedule_update_ha_state()
+        except GPIOZeroError:
+            _LOGGER.exception("failed to change state of the switch, gpio error")
+            self._switch = None
+            self._state = STATE_UNAVAILABLE
+        except Exception:
+            _LOGGER.exception("failed to change state of the switch")
+
+    @property
+    def is_connected(self):
+        """is the switch connected"""
+        return self._switch is not None
+
+    def ensure_connected(self):
+        """make sure we got an active connection"""
+        if not self.is_connected:
+            self.setup_switch()
