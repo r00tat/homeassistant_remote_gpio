@@ -90,7 +90,6 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
         except Exception as err:
             _LOGGER.exception("failed to connect switch", err)
             self._state = STATE_UNAVAILABLE
-        self.schedule_update_ha_state()
 
         return self._switch
 
