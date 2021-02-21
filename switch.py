@@ -86,7 +86,7 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
         try:
             self._switch = setup_led(self._address, self._port, self._name,
                                      self._invert_logic)
-            self._state = STATE_UNKNOWN
+            self._state = STATE_ON if self._switch.is_lit else STATE_OFF
         except Exception as err:
             _LOGGER.exception("failed to connect switch", err)
             self._state = STATE_UNAVAILABLE
