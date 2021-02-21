@@ -149,3 +149,6 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
         """make sure we got an active connection"""
         if not self.is_connected:
             self.setup_switch()
+        if not self.is_connected:
+            # still not connected
+            raise Exception("PIN not connected")
