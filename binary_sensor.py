@@ -11,17 +11,10 @@ import homeassistant.helpers.config_validation as cv
 from gpiozero import Button
 from gpiozero.pins.pigpio import PiGPIOFactory
 
-from . import (
-    DOMAIN,
-    CONF_BOUNCETIME,
-    CONF_INVERT_LOGIC,
-    CONF_PULL_MODE,
-    DEFAULT_BOUNCETIME,
-    DEFAULT_INVERT_LOGIC,
-    DEFAULT_PULL_MODE
-)
+from . import (DOMAIN, CONF_BOUNCETIME, CONF_INVERT_LOGIC, CONF_PULL_MODE,
+               DEFAULT_BOUNCETIME, DEFAULT_INVERT_LOGIC, DEFAULT_PULL_MODE)
 
-from .. import remote_gpio_custom as remote_rpi_gpio
+# from .. import remote_gpio_custom as remote_rpi_gpio
 
 _LOGGER = logging.getLogger("{}.{}".format(DOMAIN, __name__))
 
@@ -29,15 +22,13 @@ CONF_PORTS = "ports"
 
 _SENSORS_SCHEMA = vol.Schema({cv.positive_int: cv.string})
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
-    {
-        vol.Required(CONF_HOST): cv.string,
-        vol.Required(CONF_PORTS): _SENSORS_SCHEMA,
-        vol.Optional(CONF_INVERT_LOGIC, default=DEFAULT_INVERT_LOGIC): cv.boolean,
-        vol.Optional(CONF_BOUNCETIME, default=DEFAULT_BOUNCETIME): cv.positive_int,
-        vol.Optional(CONF_PULL_MODE, default=DEFAULT_PULL_MODE): cv.string,
-    }
-)
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+    vol.Required(CONF_HOST): cv.string,
+    vol.Required(CONF_PORTS): _SENSORS_SCHEMA,
+    vol.Optional(CONF_INVERT_LOGIC, default=DEFAULT_INVERT_LOGIC): cv.boolean,
+    vol.Optional(CONF_BOUNCETIME, default=DEFAULT_BOUNCETIME): cv.positive_int,
+    vol.Optional(CONF_PULL_MODE, default=DEFAULT_PULL_MODE): cv.string,
+})
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
@@ -51,9 +42,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     devices = []
     for port_num, port_name in ports.items():
         try:
-            button = setup_input(
-                address, port_num, pull_mode, bouncetime
-            )
+            button = setup_input(address, port_num, pull_mode, bouncetime)
         except (ValueError, IndexError, KeyError, OSError):
             return
         new_sensor = RemoteRPiGPIOBinarySensor(port_name, button, invert_logic)
