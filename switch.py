@@ -132,12 +132,12 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
                 self._switch.on()
             else:
                 self._switch.off()
-        except GPIOZeroError:
-            _LOGGER.exception("failed to change state of the switch, gpio error")
+        except GPIOZeroError as err:
+            _LOGGER.exception("failed to change state of the switch, gpio error", err)
             self._switch = None
             self._state = STATE_UNAVAILABLE
-        except Exception:
-            _LOGGER.exception("failed to change state of the switch")
+        except Exception as err:
+            _LOGGER.exception("failed to change state of the switch", err)
         self.schedule_update_ha_state()
 
     @property
@@ -151,4 +151,4 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
             self.setup_switch()
         if not self.is_connected:
             # still not connected
-            raise Exception("PIN not connected")
+            raise Exception("PIN {} {} not connected".format(self._name, self._port))
