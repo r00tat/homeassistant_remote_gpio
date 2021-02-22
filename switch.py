@@ -111,7 +111,7 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
     @property
     def is_on(self):
         """Return true if device is on."""
-        return self._state == STATE_ON
+        return self.is_connected and self._state == STATE_ON
 
     def turn_on(self, **kwargs):
         """Turn the device on."""
@@ -138,6 +138,8 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
             self._state = STATE_UNAVAILABLE
         except Exception:
             _LOGGER.exception("failed to change state of the switch")
+            self._switch = None
+            self._state = STATE_UNAVAILABLE
         self.schedule_update_ha_state()
 
     @property
