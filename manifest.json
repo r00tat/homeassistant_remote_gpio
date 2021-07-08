@@ -1,5 +1,5 @@
 {
-  "domain": "remote_gpio_custom",
+  "domain": "remote_gpio",
   "name": "Remote GPIO extension",
   "version": "1.0.0",
   "documentation": "",
