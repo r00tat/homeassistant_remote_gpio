@@ -1,7 +1,7 @@
 {
   "domain": "remote_gpio",
   "name": "Remote GPIO extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "",
   "dependencies": [],
   "requirements": ["pigpio"],
