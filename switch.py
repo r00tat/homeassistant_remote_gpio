@@ -14,7 +14,9 @@ from homeassistant.const import (
     STATE_ON,
     STATE_UNAVAILABLE,
 )
+from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
+import functools as ft
 
 from . import CONF_INVERT_LOGIC, DEFAULT_INVERT_LOGIC
 
@@ -31,26 +33,17 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 })
 
 
-def setup_led(address, port, name, invert_logic=False):
-    """set up a led"""
-    _LOGGER.debug(
-        "setting up output %s on %s port %s %s",
-        name,
-        address,
-        port,
-        "inverted" if invert_logic else "",
-    )
-    led = LED(port, active_high=not invert_logic, pin_factory=PiGPIOFactory(address))
-    return led
-
-
-def setup_switch(address, port, name, invert_logic=False):
+async def setup_switch(address, port, name, invert_logic, hass):
     """Set up a switch."""
-    new_switch = RemoteRPiGPIOSwitch(name, address, port, invert_logic)
+    new_switch = RemoteRPiGPIOSwitch(name, address, port, invert_logic, hass)
+    await new_switch.setup_switch()
     return new_switch
 
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
+async def async_setup_platform(hass: HomeAssistant,
+                               config,
+                               async_add_entities,
+                               discovery_info=None):
     """Set up the Remote Raspberry PI GPIO devices."""
     address = config[CONF_HOST]
     invert_logic = config[CONF_INVERT_LOGIC]
@@ -60,32 +53,43 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     for port, name in ports.items():
         try:
 
-            new_switch = setup_switch(address, port, name, invert_logic)
+            new_switch = await setup_switch(address, port, name, invert_logic, hass)
             devices.append(new_switch)
         except (ValueError, IndexError, KeyError, OSError):
             return
 
-    add_entities(devices)
+    await async_add_entities(devices)
 
 
 class RemoteRPiGPIOSwitch(SwitchEntity):
     """Representation of a Remote Raspberry Pi GPIO."""
 
-    def __init__(self, name, address, port, invert_logic=False):
+    def __init__(self, name: str, address: str, port: int, invert_logic: bool,
+                 hass: HomeAssistant):
         """Initialize the pin."""
         self._name = name or DEVICE_DEFAULT_NAME
         self._state = STATE_UNKNOWN
         self._address = address
         self._port = port
         self._invert_logic = invert_logic
-        self.setup_switch()
+        self._hass = hass
 
-    def setup_switch(self):
+    async def setup_switch(self):
         """create a switch"""
         self._switch = None
         try:
-            self._switch = setup_led(self._address, self._port, self._name,
-                                     self._invert_logic)
+            _LOGGER.debug(
+                "setting up output %s on %s port %s %s",
+                self._name,
+                self._address,
+                self._port,
+                "inverted" if self._invert_logic else "",
+            )
+            self._switch: LED = await self._hass.async_add_executor_job(
+                ft.partial(LED.__init__,
+                           self._port,
+                           active_high=not self._invert_logic,
+                           pin_factory=PiGPIOFactory(self._address)))
             self._state = STATE_ON if self._switch.is_lit else STATE_OFF
         except Exception:
             _LOGGER.exception("failed to connect {}".format(str(self)))
@@ -113,25 +117,23 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
         """Return true if device is on."""
         return self.is_connected and self._state == STATE_ON
 
-    def turn_on(self, **kwargs):
+    async def async_turn_on(self, **kwargs):
         """Turn the device on."""
-        self.change_state(True)
+        await self.change_state(True)
 
-    def turn_off(self, **kwargs):
+    async def async_turn_off(self, **kwargs):
         """Turn the device off."""
-        self.change_state(False)
+        await self.change_state(False)
 
-    def change_state(self, on=True):
+    async def change_state(self, on=True):
         """change the state"""
         _LOGGER.debug("turn %s switch %s %s", "on" if on else "off", self._name,
                       self._port)
         try:
-            self.ensure_connected()
+            await self.ensure_connected()
             self._state = STATE_ON if on else STATE_OFF
-            if on:
-                self._switch.on()
-            else:
-                self._switch.off()
+            await self._hass.async_add_executor_job(
+                (self._switch.on if on else self._switch.off))
         except GPIOZeroError:
             _LOGGER.exception("failed to change state of the switch, gpio error")
             self._switch = None
@@ -147,10 +149,10 @@ class RemoteRPiGPIOSwitch(SwitchEntity):
         """is the switch connected"""
         return self._switch is not None
 
-    def ensure_connected(self):
+    async def ensure_connected(self):
         """make sure we got an active connection"""
         if not self.is_connected:
-            self.setup_switch()
+            await self.setup_switch()
         if not self.is_connected:
             # still not connected
             raise Exception("{} not connected".format(str(self)))
